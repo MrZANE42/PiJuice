@@ -1,3 +1,5 @@
+This is my attempt at removing compiler warnings, minor code cleanup and adding some features that I need (Like LED function to show if Powered up/shutting down)
+
 ![PiJuice Logo](https://user-images.githubusercontent.com/1878314/73881793-e1c00080-4858-11ea-8ce8-e5bd4cc6f9b6.png)
 # PiJuice
 Resources for the [PiJuice range](https://uk.pi-supply.com/search?type=product&q=PiJuice) (complete with our revolutionary [PiAnywhere](https://uk.pi-supply.com/search?type=product&q=PiAnywhere) technology – the best way to take your Pi off the grid!). Originally funded on [Kickstarter](https://www.kickstarter.com/projects/pijuice/pijuice-a-portable-project-platform-for-every-rasp/).
