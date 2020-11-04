@@ -189,6 +189,10 @@ void LedInit(void) {
 	}else {
 		LedSetRGB(LED2, 0, 0, 0);
 	}
+
+
+	// TODO: Remove after testing
+	leds[1].func = LED_ON_OFF_STATUS;
 }
 
 uint8_t LedGetParamR(uint8_t func) {
@@ -245,7 +249,20 @@ void ProcessBlink(uint8_t n) {
 	}
 }
 
+extern uint32_t delayedPowerOffCounter;
+#define POW_5V_BOOST_EN_STATUS()	 	(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == GPIO_PIN_SET)
 void LedTask(void) {
+	// Indicate Power status if used by any LED (according to configuration off led)
+	if(POW_5V_BOOST_EN_STATUS())
+	{
+		if(!delayedPowerOffCounter)
+			LedFunctionSetRGB(LED_ON_OFF_STATUS, 0, 128, 0);	// Green while powered up and running
+		else
+			LedFunctionSetRGB(LED_ON_OFF_STATUS, 128, 0, 0);	// Red while shutting down
+	}
+	else
+		LedFunctionSetRGB(LED_ON_OFF_STATUS, 0, 0, 0);			//LED off when shut down
+
 	ProcessBlink(0);
 	ProcessBlink(1);
 }

@@ -43,7 +43,7 @@ extern void Error_Handler(void);
 extern void PowerMngmtGetWakeupOnChargeCmd(uint8_t data[], uint16_t *len);
 extern void PowerMngmtSetWakeupOnChargeCmd(uint8_t data[], uint16_t len);
 
-const uint8_t firmwareVer = 0x14;
+const uint8_t firmwareVer = 0x15;
 const uint8_t firmwareVariant = 0x00;
 
 typedef  void (*pFunction)(void);

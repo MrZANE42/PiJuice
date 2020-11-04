@@ -81,6 +81,8 @@ int8_t Turn5vBoost(uint8_t onOff) {
 			AnalogAdcWDGEnable(ENABLE);
 			AnalogPowerIsGood();
 			//AnalogSetAdcMode(ADC_CONT_MODE_NORMAL);
+
+
 			return 0;
 		} else {
 			return 1;
