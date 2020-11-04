@@ -49,6 +49,7 @@
 #include "io_control.h"
 #include "execution.h"
 
+/* Private defines ---------------------------------------------------------*/
 #define OWN1_I2C_ADDRESS		0x14
 #define OWN2_I2C_ADDRESS		0x68
 #define SMBUS_TIMEOUT_DEFAULT                 ((uint32_t)0x80618061)
@@ -60,6 +61,9 @@
 								|| commandReceivedFlag \
 								|| POW_SOURCE_NEED_POLL() \
 								|| alarmEventFlag ))
+
+/* External functions ---------------------------------------------------------*/
+extern void MX_TIM14_Init(void);
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc;
@@ -104,7 +108,7 @@ void SystemClock_Config(void);
 void Error_Handler(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC_Init(void);
-static void MX_I2C1_Init(void);
+//static void MX_I2C1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM3_Init(void);
@@ -597,6 +601,7 @@ static void MX_ADC_Init(void)
 }
 
 /* I2C1 init function not used, MX_SMBUS_Init used instead*/
+#if 0
 static void MX_I2C1_Init(void)
 {
 
@@ -622,6 +627,7 @@ static void MX_I2C1_Init(void)
   }*/
 
 }
+#endif
 
 static void MX_SMBUS_Init(void) {
 	hsmbus.Instance = I2C1;
@@ -695,10 +701,6 @@ static void MX_I2C2_Init(void)
 static void MX_RTC_Init(void)
 {
 
-  RTC_TimeTypeDef sTime;
-  RTC_DateTypeDef sDate;
-  RTC_AlarmTypeDef sAlarm;
-
     /**Initialize RTC Only 
     */
   hrtc.Instance = RTC;
@@ -715,6 +717,10 @@ static void MX_RTC_Init(void)
 
 // for testing/debug only
 #if 0
+  RTC_TimeTypeDef sTime;
+  RTC_DateTypeDef sDate;
+  RTC_AlarmTypeDef sAlarm;
+
   /* (1) Write access for RTC registers */
   /* (2) Disable wake up timerto modify it */
   /* (3) Wait until it is allow to modify wake up reload value */
@@ -813,7 +819,6 @@ static void MX_TIM15_Init(void)
 
   TIM_MasterConfigTypeDef sMasterConfig;
   TIM_OC_InitTypeDef sConfigOC;
-  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig;
 
   htim15.Instance = TIM15;
   htim15.Init.Prescaler = 2;
@@ -850,7 +855,10 @@ static void MX_TIM15_Init(void)
     Error_Handler();
   }
 
-  /*sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  /*
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig;
+
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
   sBreakDeadTimeConfig.DeadTime = 0;
@@ -871,7 +879,6 @@ static void MX_TIM17_Init(void)
 {
 
   TIM_OC_InitTypeDef sConfigOC;
-  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig;
 
   htim17.Instance = TIM17;
   htim17.Init.Prescaler = 0;
@@ -901,7 +908,9 @@ static void MX_TIM17_Init(void)
     Error_Handler();
   }
 
-  /*sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  /*
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig;
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
   sBreakDeadTimeConfig.DeadTime = 0;

@@ -177,8 +177,8 @@ void HAL_SMBUS_MspInit(SMBUS_HandleTypeDef *hsmbus)
   GPIO_InitTypeDef GPIO_InitStruct;
   if(hsmbus->Instance==I2C1)
   {
-	  static DMA_HandleTypeDef hdma_tx;
-	  static DMA_HandleTypeDef hdma_rx;
+//	  static DMA_HandleTypeDef hdma_tx;
+//	  static DMA_HandleTypeDef hdma_rx;
 	  RCC_PeriphCLKInitTypeDef  RCC_PeriphCLKInitStruct;
 
 	  /*##-1- Configure the I2C clock source. The clock is derived from the SYSCLK #*/
@@ -242,8 +242,6 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
   GPIO_InitTypeDef GPIO_InitStruct;
   if(hi2c->Instance==I2C1)
   {
-	  static DMA_HandleTypeDef hdma_tx;
-	  static DMA_HandleTypeDef hdma_rx;
 	  RCC_PeriphCLKInitTypeDef  RCC_PeriphCLKInitStruct;
 
 	  /*##-1- Configure the I2C clock source. The clock is derived from the SYSCLK #*/
@@ -274,8 +272,10 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
 	  GPIO_InitStruct.Alternate = GPIO_AF1_I2C1;
 	  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+#if 0
 	  /*##-4- Configure the DMA Channels #########################################*/
 	  /* Configure the DMA handler for Transmission process */
+	  static DMA_HandleTypeDef hdma_tx;
 	  hdma_tx.Instance                 = DMA1_Channel2;
 	  hdma_tx.Init.Direction           = DMA_MEMORY_TO_PERIPH;
 	  hdma_tx.Init.PeriphInc           = DMA_PINC_DISABLE;
@@ -291,6 +291,7 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
 	  //__HAL_LINKDMA(hi2c, hdmatx, hdma_tx);
 
 	  /* Configure the DMA handler for Transmission process */
+	  static DMA_HandleTypeDef hdma_rx;
 	  hdma_rx.Instance                 = DMA1_Channel3;
 	  hdma_rx.Init.Direction           = DMA_PERIPH_TO_MEMORY;
 	  hdma_rx.Init.PeriphInc           = DMA_PINC_DISABLE;
@@ -304,7 +305,7 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
 
 	  /* Associate the initialized DMA handle to the the I2C handle */
 	  //__HAL_LINKDMA(hi2c, hdmarx, hdma_rx);
-
+#endif
 	  /*##-5- Configure the NVIC for DMA #########################################*/
 	  /* NVIC configuration for DMA transfer complete interrupt (I2Cx_TX) */
 	  //HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 1);

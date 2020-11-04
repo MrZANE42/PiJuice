@@ -10,6 +10,8 @@
 #include "nv.h"
 #include "time_count.h"
 
+extern void Error_Handler(void);
+
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim15;
 extern TIM_HandleTypeDef htim17;
@@ -195,20 +197,25 @@ uint8_t LedGetParamR(uint8_t func) {
 	} else if (leds[1].func == func) {
 		return leds[1].paramR;
 	}
+	return 0;
 }
+
 uint8_t LedGetParamG(uint8_t func) {
 	if (leds[0].func == func) {
 		return leds[0].paramG;
 	} else if (leds[1].func == func) {
 		return leds[1].paramG;
 	}
+	return 0;
 }
+
 uint8_t LedGetParamB(uint8_t func) {
 	if (leds[0].func == func) {
 		return leds[0].paramB;
 	} else if (leds[1].func == func) {
 		return leds[1].paramB;
 	}
+	return 0;
 }
 
 void ProcessBlink(uint8_t n) {

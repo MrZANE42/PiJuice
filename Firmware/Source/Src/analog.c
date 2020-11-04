@@ -20,6 +20,8 @@
 
 //#define ANALOG_GET_VDG_AVG()	(4790 - (((analogIn[3] + analogIn[(uint16_t)ADC_SCAN_CHANNELS*256+3] + analogIn[(uint16_t)ADC_SCAN_CHANNELS*512+3] + analogIn[(uint16_t)ADC_SCAN_CHANNELS*768+3]) * aVdd) >> 13))
 
+void Error_Handler(void);
+
 uint16_t aVdd;
 
 extern ADC_HandleTypeDef hadc;

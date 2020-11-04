@@ -13,6 +13,9 @@
 
 #define BATTERY_PROFILES_COUNT() ((sizeof(batteryProfiles)/sizeof(BatteryProfile_T)))
 
+extern void PowerSourceSetBatProfile(const BatteryProfile_T* batProfile);
+extern void FuelGaugeSetBatProfile(const BatteryProfile_T *batProfile);
+
 static int16_t setProfileReq = -1;
 
 static int8_t writeCustomProfileReq = 0;
@@ -288,7 +291,7 @@ void BatteryTask(void) {
 		EE_ReadVariable(BAT_PROFILE_NV_ADDR, &var);
 		if ( ((var&0xFF) != BATTERY_CUSTOM_PROFILE_ID) || (((var^0xFF)&0xFF) != (var>>8)) ) {
 			uint16_t var;
-			EE_WriteVariable(BAT_PROFILE_NV_ADDR, BATTERY_CUSTOM_PROFILE_ID | ((uint16_t)~BATTERY_CUSTOM_PROFILE_ID<<8));
+			EE_WriteVariable(BAT_PROFILE_NV_ADDR, BATTERY_CUSTOM_PROFILE_ID | (~BATTERY_CUSTOM_PROFILE_ID)<<8);
 			EE_ReadVariable(BAT_PROFILE_NV_ADDR, &var);
 			if (((var^0xFF)&0xFF) == (var>>8) && (var&0xFF) == BATTERY_CUSTOM_PROFILE_ID) {  // upper byte should be complement if data are valid
 				if (currentBatProfile != NULL)

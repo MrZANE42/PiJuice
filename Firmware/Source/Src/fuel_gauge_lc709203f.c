@@ -182,9 +182,13 @@ void FuelGaugeTask(void) {
 			} else if ( (HAL_GetTick() - dischargeCountTemp) > 50000) {
 				//batteryCurrent = (int32_t)(dischargeRate>0?1800:-1800) * (currentBatProfile!=NULL ? currentBatProfile->capacity : 10000) / (int32_t)(HAL_GetTick() - dischargeCount);
 				//dischargeRate = ((int32_t)prevRsoc - batteryRsoc) * (int32_t)1843200 / (int32_t)(HAL_GetTick() - dischargeCount);
-				int16_t newCurr;
-				if (dischargeRate!=0) newCurr = (((int32_t)(dischargeRate>0?1:-1)) * (int32_t)1843200 / (int32_t)(HAL_GetTick() - dischargeCount) * (currentBatProfile!=NULL ? currentBatProfile->capacity : 10000)) >> 10;
-				else newCurr = 0;
+
+/*				int16_t newCurr;
+				if (dischargeRate!=0)
+					newCurr = (((int32_t)(dischargeRate>0?1:-1)) * (int32_t)1843200 / (int32_t)(HAL_GetTick() - dischargeCount) * (currentBatProfile!=NULL ? currentBatProfile->capacity : 10000)) >> 10;
+				else
+					newCurr = 0;*/
+
 				//if ( (newCurr>0?newCurr:-newCurr) < (batteryCurrent>0?batteryCurrent:-batteryCurrent) ) batteryCurrent = newCurr;
 				/*if (batteryCurrent > 120) {
 					batteryCurrent -= 120;
@@ -263,7 +267,7 @@ void FuelGaugeTask(void) {
 }
 
 void FuelGaugeSetBatProfile(const BatteryProfile_T *batProfile) {
-	int8_t succ;
+//	int8_t succ;
 	if (fuelGaugeStatus) return;// if not present
 
 	if ( batProfile != NULL && batProfile->ntcB != 0xFFFF && batProfile->ntcResistance == 1000 ) {

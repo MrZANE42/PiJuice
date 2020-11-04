@@ -22,7 +22,7 @@
 #include "io_control.h"
 #include "execution.h"
 
-#define REGISTERS_NUM	((uint16_t)256)
+#define REGISTERS_NUM	256//((uint16_t)256)
 
 #define SYS_MEM_ADDRESS		0x1FFFD800 // for STM32F030x8 0x1FFFEC00
 
@@ -39,6 +39,7 @@ extern uint16_t wakeupOnCharge;
 extern uint8_t powerOffBtnEventFlag;
 
 extern void Error_Handler(void);
+extern void PowerMngmtGetWakeupOnChargeCmd(uint8_t data[], uint16_t *len);
 
 const uint8_t firmwareVer = 0x12;
 const uint8_t firmwareVariant = 0x00;
@@ -98,6 +99,7 @@ void CmdServerReadWriteIoConfig1(uint8_t dir, uint8_t *pData, uint16_t *dataLen)
 void CmdServerReadWriteIoConfig2(uint8_t dir, uint8_t *pData, uint16_t *dataLen);
 void CmdServerReadWriteIoValue1(uint8_t dir, uint8_t *pData, uint16_t *dataLen);
 void CmdServerReadWriteIoValue2(uint8_t dir, uint8_t *pData, uint16_t *dataLen);
+extern void PowerMngmtSetWakeupOnChargeCmd(uint8_t data[], uint16_t len);
 
 MasterCommand_T masterCommands[REGISTERS_NUM] =
 {
@@ -409,7 +411,7 @@ uint8_t CalcFcs(uint8_t *msg, int size)
 void CommandServerInit(void) {
 
 	// init memory map
-	uint8_t size = REGISTERS_NUM;
+	uint16_t size = REGISTERS_NUM;
 	while((--size) > 0) reg[size] = 0;
 }
 
@@ -455,13 +457,13 @@ void CmdServerDefaultReadWrite(uint8_t dir, uint8_t *pData, uint16_t *dataLen) {
 
 static uint8_t IsEventFault(void) {
 	uint8_t ev = 0;
-	ev = ev || powerOffBtnEventFlag;
-	ev = ev || forcedPowerOffFlag;
-	ev = ev || forcedVSysOutputOffFlag;
-	ev = ev || watchdogExpiredFlag;
-	ev = ev || ((currentBatProfile == NULL) ? 0x20 : 0);
-	ev = ev || CHRGER_TS_FAULT_STATUS();
-	return ev;
+	ev |= powerOffBtnEventFlag;
+	ev |= forcedPowerOffFlag;
+	ev |= forcedVSysOutputOffFlag;
+	ev |= watchdogExpiredFlag;
+	ev |= ((currentBatProfile == NULL) ? 0x20 : 0);
+	ev |= CHRGER_TS_FAULT_STATUS();
+	return ev ? 1:0;
 }
 
 void CmdServerReadStatus(uint8_t dir, uint8_t *pData, uint16_t *dataLen) {

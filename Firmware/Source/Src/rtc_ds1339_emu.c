@@ -11,7 +11,11 @@
 
 #define RTC_REGISTERS_NUM	(0x3F+1) // free RAM reserved for compatibility with ds1307
 
+extern void Error_Handler(void);
+
 extern RTC_HandleTypeDef hrtc;
+
+
 RTC_AlarmTypeDef sAlarm;
 
 static uint8_t rtc_buffer[RTC_REGISTERS_NUM] __attribute__((section("no_init")));//= {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x07, 0, 0}; // rtc_bufferisters used for i2c master access

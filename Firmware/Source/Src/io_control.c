@@ -9,6 +9,9 @@
 #include "analog.h"
 #include "nv.h"
 
+extern void Error_Handler(void);
+extern void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim);
+
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim14;
 TIM_HandleTypeDef *htim;

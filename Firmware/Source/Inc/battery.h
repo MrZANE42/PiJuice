@@ -26,7 +26,7 @@
 #define BATTERY_PROFILE (batteryProfiles[batProfileStatus])
 #define BATTERY_DEFAULT_PROFILE_ID 0xFF
 #define BATTERY_NONEXIST_PROFILE_ID ((0x0<<4)|(0x1<<6))//0xE0 // ored with stored profile id
-#define BATTERY_CUSTOM_PROFILE_ID 0x0F//((0x00<<4)|(0x00<<6)|0x0F)//0x80
+#define BATTERY_CUSTOM_PROFILE_ID 	(0x0F) //((0x00<<4)|(0x00<<6)|0x0F)//0x80
 #define BATTERY_INVALID_CUSTOM_PROFILE_STATUS ((0x0<<4)|(0x1<<6)|0x0F)//0x8F
 #define BATTERY_CONFIG_RES_PROFILE_ID ((0x2<<4)|(0x0<<6))//0x40 // profile id is selected with resistor, ored with id
 #define BATTERY_CONFIG_SW_PROFILE_ID ((0x1<<4)|(0x0<<6))//0x20 // profile id is selected with dip switch, ored with id
