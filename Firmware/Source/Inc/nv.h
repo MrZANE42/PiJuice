@@ -11,7 +11,11 @@
 #include "stdint.h"
 #include "eeprom.h"
 
+#define NV_INVALID_VARIABLE        ((uint16_t)0x000f)
+#define NV_READ_VARIABLE_SUCCESS   ((uint16_t)0)
+
 #define NV_IS_DATA_INITIALIZED	(nvInitFlag != 0Xffff)
+#define NV_IS_VARIABLE_VALID(var)	(((~var)&0xFF) == (var>>8))
 
 #define NV_VAR_LIST \
  NV_STATIC_START_ID, /* static variables are not deleted when reset to default*/ \
@@ -46,7 +50,7 @@
  BAT_NTC_B_NV_ADDR, \
  BAT_NTC_RESISTANCE_NV_ADDR, \
  BAT_NTC_CRC_NV_ADDR, \
- BAT_TEMP_SENSE_CONFIG, \
+ FUEL_GAUGE_CONFIG_NV_ADDR, \
  CHARGING_CONFIG_NV_ADDR, /* NV_ADDR_RESERVED1 */ \
  CHARGER_INPUTS_CONFIG_NV_ADDR, /* NV_ADDR_RESERVED2 */ \
  NV_ADDR_RESERVED4, /*WAKEUPONCHARGE_CONFIG_NV_ADDR*/\
@@ -112,7 +116,21 @@
  IO_CONFIG1_PARAM2_NV_ADDR, \
  IO_CONFIG2_NV_ADDR, \
  IO_CONFIG2_PARAM1_NV_ADDR, \
- IO_CONFIG2_PARAM2_NV_ADDR
+ IO_CONFIG2_PARAM2_NV_ADDR, \
+ NV_ADDR_RESERVED13, \
+ BAT_CHEMISTRY_NV_ADDR, \
+ BAT_OCV10L_NV_ADDR, \
+ BAT_OCV10H_NV_ADDR, \
+ BAT_OCV50L_NV_ADDR, \
+ BAT_OCV50H_NV_ADDR, \
+ BAT_OCV90L_NV_ADDR, \
+ BAT_OCV90H_NV_ADDR, \
+ BAT_R10L_NV_ADDR, \
+ BAT_R10H_NV_ADDR, \
+ BAT_R50L_NV_ADDR, \
+ BAT_R50H_NV_ADDR, \
+ BAT_R90L_NV_ADDR, \
+ BAT_R90H_NV_ADDR
 
 typedef enum
 {
@@ -133,5 +151,6 @@ uint16_t EE_WriteVariable(uint16_t VirtAddress, uint16_t Data);
 __STATIC_INLINE void NvWriteVariableU8(uint16_t VirtAddress, uint8_t var) {
 	EE_WriteVariable(VirtAddress, (uint16_t)(var | (((uint16_t)(~var))<<8)));
 }
+uint16_t NvReadVariableU8(uint16_t VirtAddress, uint8_t *pVar);
 
 #endif /* NV_H_ */

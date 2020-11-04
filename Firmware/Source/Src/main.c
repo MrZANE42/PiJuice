@@ -86,7 +86,7 @@ uint8_t resetStatus = 0;
 /* Private variables ---------------------------------------------------------*/
 
 /* Buffer used for I2C transfer */
-  uint8_t i2cTrfBuffer[256];
+  //uint8_t i2cTrfBuffer[256];
 
 static uint8_t commandReceivedFlag = 0;
 
@@ -109,12 +109,13 @@ void Error_Handler(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC_Init(void);
 //static void MX_I2C1_Init(void);
+void MX_I2C1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM15_Init(void);
 static void MX_TIM17_Init(void);
-static void MX_SMBUS_Init(void);
+//static void MX_SMBUS_Init(void);
 static void MX_IWDG_Init(void);
 //static void MX_WWDG_Init(void);
 
@@ -152,6 +153,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
   {
 	  // I2C SDA
 	  extiFlag = 2;
+  } else if (GPIO_Pin == GPIO_PIN_8) {
+	  extiFlag = 4;
+	  ioWakeupEvent = 1;
   } else {
 	  // SW1, SW2, SW3
 	  extiFlag = 3;
@@ -162,139 +166,140 @@ static uint16_t i2cAddrMatchCode = 0;
 volatile static uint8_t i2cTransferDirection = 0;
 static int16_t readCmdCode = 0;
 uint32_t mainPollMsCounter;
-volatile uint8_t newSmbusTransferFlag = 3;
-//volatile uint8_t testLen = 0;
-//volatile uint8_t testCmd = 0;
+static uint8_t       aSlaveReceiveBuffer[256]  = {0};
+uint8_t      slaveTransmitBuffer[256]      = {0};
+__IO static uint8_t  ubSlaveReceiveIndex       = 0;
+uint32_t      uwTransferDirection       = 0;
+//__IO uint32_t uwTransferInitiated       = 0;
+//__IO uint32_t uwTransferEnded           = 0;
+volatile uint8_t tstFlagi2c=0;
+uint16_t dataLen;
 
-void HAL_SMBUS_ErrorCallback(SMBUS_HandleTypeDef *hsmbus) {
+void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	tstFlagi2c=9;
+	dataLen = 1;
+	if (i2cAddrMatchCode == hi2c->Init.OwnAddress2) {
+		uint8_t cmd = RtcGetPointer();
+		RtcDs1339ProcessRequest(I2C_DIRECTION_RECEIVE, cmd, slaveTransmitBuffer, &dataLen);
+		RtcSetPointer(cmd + 1);
+		HAL_I2C_Slave_Seq_Transmit_IT(hi2c, (uint8_t *)slaveTransmitBuffer, 1, I2C_NEXT_FRAME);
+	} else {
+		slaveTransmitBuffer[0] = 0;
+		HAL_I2C_Slave_Seq_Transmit_IT(hi2c, (uint8_t *)slaveTransmitBuffer, 1, I2C_LAST_FRAME);
+}
 }
 
-void HAL_SMBUS_SlaveTxCpltCallback(SMBUS_HandleTypeDef *hsmbus) {
-	//HAL_SMBUS_EnableListen_IT( hsmbus );
-	newSmbusTransferFlag  = 3;
-}
-
-static uint8_t rcvLength = 0;
-void HAL_SMBUS_SlaveRxCpltCallback(SMBUS_HandleTypeDef *hsmbus) {
-	i2cTransferDirection = SMBUS_GET_DIR(hsmbus);
-	/*if (newSmbusTransferFlag > 0) {
-			newSmbusTransferFlag = 0;
-		}*/
-	newSmbusTransferFlag = 1;
-	if (i2cTransferDirection == I2C_DIRECTION_TRANSMIT) {
-		readCmdCode = i2cTrfBuffer[0];
-
-		  /* If a pending TXIS flag is set */
-		  /* Write a dummy data in TXDR to clear it */
-		  if(__HAL_I2C_GET_FLAG(hsmbus, I2C_FLAG_TXIS) != RESET)
+void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c1)
 		  {
-			  hsmbus->Instance->TXDR = 0x00U;
+    ubSlaveReceiveIndex++;
+	tstFlagi2c=1;
+    if(HAL_I2C_Slave_Seq_Receive_IT(hi2c1, (uint8_t *)&aSlaveReceiveBuffer[ubSlaveReceiveIndex], 1, I2C_NEXT_FRAME) != HAL_OK) {
+      Error_Handler();
+    }
+    tstFlagi2c=2;
 		  }
 
-		  // Flush TX register if not empty
-		  if(__HAL_I2C_GET_FLAG(hsmbus, I2C_FLAG_TXE) == RESET)
+void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode)
 		  {
-		    __HAL_I2C_CLEAR_FLAG(hsmbus, I2C_FLAG_TXE);
-		  }
+	i2cAddrMatchCode = AddrMatchCode;
+    //uwTransferInitiated = 1;
+    uwTransferDirection = TransferDirection;
 
-		  DelayUs(17);
-		  if (SMBUS_CHECK_FLAG(hsmbus->Instance->ISR, SMBUS_FLAG_STOPF) != RESET) return;
-
-	    DelayUs(83);
-		// if after command received there is no new receive start or stop, this is smbus write, start to receive all data
-		if ( ((SMBUS_CHECK_FLAG(hsmbus->Instance->ISR, SMBUS_FLAG_ADDR) == RESET) && (SMBUS_CHECK_FLAG(hsmbus->Instance->ISR, SMBUS_FLAG_STOPF) == RESET)) ) {
-			rcvLength = I2C_MAX_RECEIVE_SIZE;
-			HAL_SMBUS_Slave_Receive_IT(hsmbus, (uint8_t *)&i2cTrfBuffer[1], I2C_MAX_RECEIVE_SIZE, SMBUS_FIRST_AND_LAST_FRAME_NO_PEC);
-		} else if ( SMBUS_CHECK_FLAG(hsmbus->Instance->ISR, SMBUS_FLAG_RXNE) != RESET /*&& newSmbusTransferFlag == 0*/) {
-			rcvLength = 0;
-			//HAL_SMBUS_Slave_Receive_IT(hsmbus, (uint8_t *)&i2cTrfBuffer[1], 1, SMBUS_FIRST_AND_LAST_FRAME_NO_PEC);
-			/* Read data from RXDR */
-			      (*hsmbus->pBuffPtr++) = hsmbus->Instance->RXDR;
-			      //hsmbus->XferSize--;
-			      //hsmbus->XferCount--;
-		}
+    // First of all, check the transfer direction to call the correct Slave Interface
+    if(uwTransferDirection == I2C_DIRECTION_TRANSMIT) {
+    	tstFlagi2c=3;
+      if(HAL_I2C_Slave_Seq_Receive_IT(hi2c, (uint8_t *)&aSlaveReceiveBuffer[ubSlaveReceiveIndex], 1, I2C_FIRST_FRAME) != HAL_OK) {
+        Error_Handler();
 	}
+      tstFlagi2c=4;
 }
+    else {
+		dataLen = 1;
+		readCmdCode=aSlaveReceiveBuffer[0];
+		slaveTransmitBuffer[0]=readCmdCode;
 
-void HAL_SMBUS_ListenCpltCallback(SMBUS_HandleTypeDef *hsmbus) {
-	i2cTransferDirection = SMBUS_GET_DIR(hsmbus);
-	if (i2cTransferDirection == I2C_DIRECTION_TRANSMIT) {
-		uint16_t dataLen = hsmbus->pBuffPtr - i2cTrfBuffer;//rcvLength - hsmbus->XferSize + 1;
-		/*if (newSmbusTransferFlag > 1){
-			newSmbusTransferFlag = 0;
-		}*/
-		newSmbusTransferFlag = 2;
-		if ( dataLen > 1) {
-			//readCmdCode = i2cTrfBuffer[0];
-			if (i2cAddrMatchCode == (hsmbus->Init.OwnAddress1 >>1)) {
+		if (AddrMatchCode == hi2c->Init.OwnAddress1 ) {
 				if (readCmdCode >= 0x80 && readCmdCode <= 0x8F) {
-					dataLen -= 1; // first is command
-					RtcDs1339ProcessRequest(I2C_DIRECTION_TRANSMIT, readCmdCode - 0x80, i2cTrfBuffer + 1, &dataLen);
+				RtcDs1339ProcessRequest(I2C_DIRECTION_RECEIVE, readCmdCode - 0x80, slaveTransmitBuffer, &dataLen);
+				RtcSetPointer(readCmdCode - 0x80 + dataLen);
 				} else {
-					CmdServerProcessRequest(MASTER_CMD_DIR_WRITE, i2cTrfBuffer, &dataLen);
-					commandReceivedFlag = 1;
+				CmdServerProcessRequest(MASTER_CMD_DIR_READ, slaveTransmitBuffer, &dataLen);
 				}
+			tstFlagi2c=11;
 			} else {
 				if ( readCmdCode <= 0x0F ) {
-					// rtc emulation range
-					dataLen -= 1; // first is command
-					RtcDs1339ProcessRequest(I2C_DIRECTION_TRANSMIT, readCmdCode, i2cTrfBuffer + 1, &dataLen);
+				RtcDs1339ProcessRequest(I2C_DIRECTION_RECEIVE, readCmdCode, slaveTransmitBuffer, &dataLen);
+				RtcSetPointer(readCmdCode + dataLen);
 				} else {
-					CmdServerProcessRequest(MASTER_CMD_DIR_WRITE, i2cTrfBuffer, &dataLen);
-					commandReceivedFlag = 1;
+				CmdServerProcessRequest(MASTER_CMD_DIR_READ, slaveTransmitBuffer, &dataLen);
 				}
+			tstFlagi2c=12;
 			}
+		if(HAL_I2C_Slave_Seq_Transmit_IT(hi2c, (uint8_t *)slaveTransmitBuffer, dataLen, I2C_FIRST_AND_NEXT_FRAME) != HAL_OK) {
+			Error_Handler();
 		}
  	}
 
-	HAL_SMBUS_EnableListen_IT( hsmbus );
-}
-
-void HAL_SMBUS_AddrCallback(SMBUS_HandleTypeDef *hsmbus, uint8_t TransferDirection, uint16_t AddrMatchCode)
-{
-    i2cTransferDirection = TransferDirection;
-	i2cAddrMatchCode = AddrMatchCode;
-
-	/*if (newSmbusTransferFlag == 0)
-		HAL_SMBUS_EnableListen_IT( hsmbus );//hsmbus->State = HAL_SMBUS_STATE_LISTEN;
-
-	newSmbusTransferFlag = 0;*/
-	//DelayUs(20);
-	TransferDirection = SMBUS_GET_DIR(hsmbus);
-	if (TransferDirection == I2C_DIRECTION_TRANSMIT) {
-		//hsmbus->State = HAL_SMBUS_STATE_LISTEN;
-		//hsmbus->XferCount = 0;
-		//hsmbus->XferSize = 0;
-		HAL_SMBUS_Slave_Receive_IT(hsmbus, (uint8_t *)i2cTrfBuffer, 1, SMBUS_FIRST_FRAME);
-	}
-	else {
-		uint16_t dataLen = 1;
-		i2cTrfBuffer[0] = readCmdCode;
-		if (AddrMatchCode == (hsmbus->Init.OwnAddress1 >> 1) )
-			if (readCmdCode >= 0x80 && readCmdCode <= 0x8F) {
-				RtcDs1339ProcessRequest(I2C_DIRECTION_RECEIVE, readCmdCode - 0x80, i2cTrfBuffer, &dataLen);
-			} else {
-				CmdServerProcessRequest(MASTER_CMD_DIR_READ, i2cTrfBuffer, &dataLen);
-			}
-		else
-			if ( readCmdCode <= 0x0F ) {
-				RtcDs1339ProcessRequest(I2C_DIRECTION_RECEIVE, readCmdCode, i2cTrfBuffer, &dataLen);
-			} else {
-				CmdServerProcessRequest(MASTER_CMD_DIR_READ, i2cTrfBuffer, &dataLen);
-			}
-		/*if (readCmdCode == 64){
-			testLen = dataLen;
-			testCmd = readCmdCode;
-		}*/
-
-		//HAL_SMBUS_Slave_Receive_IT(hsmbus, (uint8_t *)i2cTrfBuffer, 0, SMBUS_FIRST_AND_LAST_FRAME_NO_PEC);
-		HAL_SMBUS_Slave_Transmit_IT(hsmbus, i2cTrfBuffer, dataLen, SMBUS_FIRST_AND_LAST_FRAME_NO_PEC);
-		if (newSmbusTransferFlag == 0)
-			HAL_SMBUS_EnableListen_IT( hsmbus );
-	}
-	newSmbusTransferFlag = 0;
 	PowerMngmtHostPollEvent();
 	MS_TIME_COUNTER_INIT(lastHostCommandTimer);
+}
+
+void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
+{
+	tstFlagi2c=7;
+	//uwTransferEnded = 1;
+	//uwTransferDirection = I2C_GET_DIR(hi2c);
+	if (uwTransferDirection == I2C_DIRECTION_TRANSMIT) {
+		dataLen = ubSlaveReceiveIndex;
+		readCmdCode = aSlaveReceiveBuffer[0];
+		if ( dataLen > 1) {
+			if (i2cAddrMatchCode == (hi2c->Init.OwnAddress1 >>1)) {
+			if (readCmdCode >= 0x80 && readCmdCode <= 0x8F) {
+					dataLen -= 1; // first is command
+					RtcDs1339ProcessRequest(I2C_DIRECTION_TRANSMIT, readCmdCode - 0x80, aSlaveReceiveBuffer + 1, &dataLen);
+			} else {
+					CmdServerProcessRequest(MASTER_CMD_DIR_WRITE, aSlaveReceiveBuffer, &dataLen);
+					commandReceivedFlag = 1;
+			}
+			} else {
+			if ( readCmdCode <= 0x0F ) {
+					// rtc emulation range
+					dataLen -= 1; // first is command
+					RtcDs1339ProcessRequest(I2C_DIRECTION_TRANSMIT, readCmdCode, aSlaveReceiveBuffer + 1, &dataLen);
+			} else {
+					CmdServerProcessRequest(MASTER_CMD_DIR_WRITE, aSlaveReceiveBuffer, &dataLen);
+					commandReceivedFlag = 1;
+				}
+			}
+		}
+			}
+
+	ubSlaveReceiveIndex=0;
+	HAL_I2C_EnableListen_IT(hi2c);
+	tstFlagi2c=8;
+}
+
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
+{
+	// Error_Handler() function is called when error occurs.
+	// 1- When Slave don't acknowledge it's address, Master restarts communication.
+	// 2- When Master don't acknowledge the last data transferred, Slave don't care in this example.
+	if (HAL_I2C_GetError(hi2c) != HAL_I2C_ERROR_AF)
+	{
+		Error_Handler();
+	}
+	// Clear OVR flag
+	/*__HAL_I2C_CLEAR_FLAG(hi2c1, I2C_FLAG_AF);
+	ubSlaveReceiveIndex=0;
+	HAL_I2C_EnableListen_IT(hi2c1);*/
+	//hi2c1->Instance->ICR=0xFFFF;
+	/*uint32_t cr=hi2c1->Instance->CR1;
+	cr &= 0xFFFFFFFE;
+	hi2c1->Instance->CR1=cr;
+	DelayUs(1);
+	cr = 0xFFFFFFFF;
+	hi2c1->Instance->CR1=cr;*/
 }
 
 static uint32_t lowPowerDealyTimer;
@@ -324,7 +329,7 @@ void WaitInterrupt() {
 
 		i2c_GPIO_InitStruct.Pin       = GPIO_PIN_7;
 		i2c_GPIO_InitStruct.Mode      = GPIO_MODE_AF_OD;
-		i2c_GPIO_InitStruct.Pull      = GPIO_PULLUP;
+		i2c_GPIO_InitStruct.Pull      = GPIO_NOPULL;//GPIO_PULLUP;
 		i2c_GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
 		i2c_GPIO_InitStruct.Alternate = GPIO_AF1_I2C1;
 		HAL_GPIO_Init(GPIOB, &i2c_GPIO_InitStruct);
@@ -349,7 +354,16 @@ void WaitInterrupt() {
 
 int main(void)
 {
-	//
+
+	if (executionState != EXECUTION_STATE_NORMAL && executionState != EXECUTION_STATE_UPDATE && executionState != EXECUTION_STATE_CONFIG_RESET) {
+		if (__HAL_RCC_GET_FLAG(RCC_FLAG_PORRST)) {
+			executionState = EXECUTION_STATE_POWER_RESET;
+		} else {//if (__HAL_RCC_GET_FLAG(RCC_FLAG_SFTRST)){
+			// updating from old firmware without executionState defined
+			executionState = EXECUTION_STATE_UPDATE;
+		} // else if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST) {
+	}
+	__HAL_RCC_CLEAR_RESET_FLAGS();
 
 	if ( executionState == EXECUTION_STATE_NORMAL ) {
 		resetStatus = 1;
@@ -358,8 +372,6 @@ int main(void)
 		resetStatus = 0;
 	}
 
-	// Reset of all peripherals, Initializes the Flash interface and the Systick.
-	//HAL_Init();
 	__HAL_FLASH_PREFETCH_BUFFER_ENABLE();
 
 	HAL_MspInit();
@@ -371,9 +383,10 @@ int main(void)
 
   // Initialize all configured peripherals
   MX_GPIO_Init();
+	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == GPIO_PIN_RESET && executionState == EXECUTION_STATE_POWER_RESET) executionState = EXECUTION_STATE_POWER_ON;
   MX_ADC_Init();
   //MX_WWDG_Init();
-  MX_SMBUS_Init();//MX_I2C1_Init();//  // NOTE: need 48KHz clock to work on 400KHz
+	MX_I2C1_Init();//MX_SMBUS_Init();//  // NOTE: need 48KHz clock to work on 400KHz
   MX_I2C2_Init();
   MX_RTC_Init();
   MX_TIM3_Init();
@@ -383,18 +396,6 @@ int main(void)
   MX_TIM14_Init();
 
   HAL_InitTick(TICK_INT_PRIORITY);
-
-  //##-1- Check if the system has resumed from IWDG reset ####################
-  if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST) != RESET)
-  {
-    //LedSetRGB(LED1, 50, 50, 100);// IWDGRST flag set: Turn LED3 on
-    // Clear reset flags
-    __HAL_RCC_CLEAR_RESET_FLAGS();
-  }
-  else
-  {
-   // BSP_LED_Off(LED3); // IWDGRST flag is not set: Turn LED3 off
-  }
 
   if (!resetStatus) MS_TIME_COUNTER_INIT(lastHostCommandTimer);
 
@@ -406,9 +407,10 @@ int main(void)
  AnalogInit();
  LoadCurrentSenseInit();
  BatteryInit();
+	if (executionState == EXECUTION_STATE_POWER_ON) HAL_Delay(100);  // after power-on, charger and fuel gauge requires initialization time
  ChargerInit();
+	PowerSourceInit();
  FuelGaugeInit();
- PowerSourceInit();
  PowerManagementInit();
  LedInit();
  ButtonInit();
@@ -417,13 +419,15 @@ int main(void)
 
  NvSetDataInitialized();
 
-	if ( executionState == EXECUTION_STATE_CONFIG_RESET ) {
+	/*if ( executionState == EXECUTION_STATE_CONFIG_RESET ) {
 		LedSetRGB(1, 0, 255, 0);
-	} else if (executionState == EXECUTION_STATE_NORMAL) {
+	} else if (executionState == EXECUTION_STATE_POWER_RESET) {
 		LedSetRGB(1, 255, 0, 0);
 	} else if (executionState == EXECUTION_STATE_UPDATE) {
 		LedSetRGB(1, 0, 0, 255);
-	}
+	} else {
+		LedSetRGB(1, 0, 0, 0);
+	}*/
 
  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET); // ee write protect
  uint16_t var = 0;
@@ -436,7 +440,7 @@ int main(void)
 
  state = STATE_NORMAL;
 
- HAL_SMBUS_EnableListen_IT( &hsmbus );
+	HAL_I2C_EnableListen_IT(&hi2c1);
 
  executionState = EXECUTION_STATE_NORMAL; // after initialization indicate it for future wd resets
 
@@ -601,16 +605,30 @@ static void MX_ADC_Init(void)
 }
 
 /* I2C1 init function not used, MX_SMBUS_Init used instead*/
-#if 0
-static void MX_I2C1_Init(void)
+void MX_I2C1_Init(void)
 {
 
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00900000;//0x2000090E;
-  hi2c1.Init.OwnAddress1 = 0x28;
+  hi2c1.Init.Timing = 0x00FF0000;//0x00C4092A;//0x00300000;//0x00900000 for 48000 i2c clock
+	uint16_t var = 0;
+	EE_ReadVariable(OWN_ADDRESS1_NV_ADDR, &var);
+	if ( (((~var)&0xFF) == (var>>8)) ) {
+		// Use NV address
+		hi2c1.Init.OwnAddress1 = var&0xFF;
+	} else {
+		// Use default address
+		hi2c1.Init.OwnAddress1 = OWN1_I2C_ADDRESS << 1;
+	}
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_ENABLE;//I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0xD0;
+	EE_ReadVariable(OWN_ADDRESS2_NV_ADDR, &var);
+	if ( (((~var)&0xFF) == (var>>8)) ) {
+		// Use NV address
+		hi2c1.Init.OwnAddress2 = var&0xFF;
+	} else {
+		// Use default address
+		hi2c1.Init.OwnAddress2 = OWN2_I2C_ADDRESS << 1;
+	}
   hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
   hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
   hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
@@ -627,8 +645,8 @@ static void MX_I2C1_Init(void)
   }*/
 
 }
-#endif
 
+#if 0
 static void MX_SMBUS_Init(void) {
 	hsmbus.Instance = I2C1;
 	hsmbus.Init.Timing = 0x00300000;//0x00900000 for 48000 i2c clock
@@ -669,7 +687,7 @@ static void MX_SMBUS_Init(void) {
 	  Error_Handler();
 	}*/
 }
-
+#endif
 /* I2C2 init function */
 static void MX_I2C2_Init(void)
 {
@@ -700,7 +718,6 @@ static void MX_I2C2_Init(void)
 /* RTC init function */
 static void MX_RTC_Init(void)
 {
-
     /**Initialize RTC Only 
     */
   hrtc.Instance = RTC;

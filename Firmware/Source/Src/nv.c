@@ -54,3 +54,17 @@ void NvSaveParameterReq(NvVarId_T id, uint16_t value) {
 	nvSaveParmeterReq = id;
 	nvSaveParmeterValue = value;
 }
+
+uint16_t NvReadVariableU8(uint16_t VirtAddress, uint8_t *pVar) {
+	uint16_t var = 0;
+	uint16_t succ = EE_ReadVariable(VirtAddress, &var);
+	if (succ==0) {
+		if (NV_IS_VARIABLE_VALID(var)) {
+			*pVar = var&0xFF;
+			return NV_READ_VARIABLE_SUCCESS;
+		} else
+			return NV_INVALID_VARIABLE;
+	} else {
+		return succ;
+	}
+}

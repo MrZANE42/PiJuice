@@ -39,6 +39,8 @@ uint8_t watchdogExpiredFlag __attribute__((section("no_init")));
 uint8_t rtcWakeupEventFlag __attribute__((section("no_init")));
 uint8_t powerOffBtnEventFlag __attribute__((section("no_init")));
 
+uint8_t ioWakeupEvent = 0;
+
 extern uint8_t resetStatus;
 
 extern uint8_t noBatteryTurnOn;
@@ -68,6 +70,7 @@ void PowerManagementInit(void) {
 		watchdogTimer = 0;
 		watchdogExpiredFlag = 0;
 		rtcWakeupEventFlag = 0;
+		ioWakeupEvent = 0;
 		powerOffBtnEventFlag = 0;
 	}
 
@@ -97,6 +100,23 @@ int8_t ResetHost(void) {
 			MS_TIME_COUNTER_INIT(lastWakeupTimer);
 			return 0;
 		}
+	} else if ( (POW_5V_BOOST_EN_STATUS() || power5vIoStatus != POW_SOURCE_NOT_PRESENT) ) {
+		// wakeup via RPI GPIO3
+	    GPIO_InitTypeDef i2c_GPIO_InitStruct;
+		i2c_GPIO_InitStruct.Pin = GPIO_PIN_6;
+		i2c_GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+		i2c_GPIO_InitStruct.Pull = GPIO_NOPULL;
+	    HAL_GPIO_Init(GPIOB, &i2c_GPIO_InitStruct);
+	    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET);
+		DelayUs(100);
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_13, GPIO_PIN_SET);
+		i2c_GPIO_InitStruct.Pin       = GPIO_PIN_6;
+		i2c_GPIO_InitStruct.Mode      = GPIO_MODE_AF_OD;
+		i2c_GPIO_InitStruct.Pull      = GPIO_NOPULL;
+		i2c_GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+		i2c_GPIO_InitStruct.Alternate = GPIO_AF1_I2C1;
+		HAL_GPIO_Init(GPIOB, &i2c_GPIO_InitStruct);
+		return 0;
 	}
 	return 1;
 }
@@ -118,6 +138,7 @@ void PowerOnButtonEventCb(uint8_t b, ButtonEvent_T event) {
 			if (WakeUpHost() == 0) {
 				wakeupOnCharge = 0xFFFF;
 				rtcWakeupEventFlag = 0;
+				ioWakeupEvent = 0;
 				delayedPowerOffCounter = 0;
 			}
 		}
@@ -140,6 +161,7 @@ void ButtonEventFuncPowerResetCb(uint8_t b, ButtonEvent_T event) {
 	if (ResetHost() == 0) {
 		wakeupOnCharge = 0xFFFF;
 		rtcWakeupEventFlag = 0;
+		ioWakeupEvent = 0;
 		delayedPowerOffCounter = 0;
 	}
 	ButtonRemoveEvent(b);
@@ -147,6 +169,7 @@ void ButtonEventFuncPowerResetCb(uint8_t b, ButtonEvent_T event) {
 
 void PowerMngmtHostPollEvent(void) {
 	rtcWakeupEventFlag = 0;
+	ioWakeupEvent = 0;
 	watchdogTimer = watchdogExpirePeriod;
 }
 
@@ -186,11 +209,12 @@ void PowerManagementTask(void) {
 		else
 			LedFunctionSetRGB(LED_CHARGE_STATUS, r, g, b);
 
-		if ( ((batteryRsoc >= wakeupOnCharge && CHARGER_IS_INPUT_PRESENT() && CHARGER_IS_BATTERY_PRESENT()) || rtcWakeupEventFlag) && MS_TIME_COUNT(lastHostCommandTimer) > 15000 && MS_TIME_COUNT(lastWakeupTimer) > 30000 ) {
+		if ( ((batteryRsoc >= wakeupOnCharge && CHARGER_IS_INPUT_PRESENT() && CHARGER_IS_BATTERY_PRESENT()) || rtcWakeupEventFlag || ioWakeupEvent) && !delayedPowerOffCounter && MS_TIME_COUNT(lastHostCommandTimer) > 15000 && MS_TIME_COUNT(lastWakeupTimer) > 30000 ) {
 			if ( WakeUpHost() == 0 ) {
 				wakeupOnCharge = 0xFFFF;
 				rtcWakeupEventFlag = 0;
 				delayedPowerOffCounter = 0;
+				ioWakeupEvent = 0;
 			}
 		}
 
@@ -199,6 +223,7 @@ void PowerManagementTask(void) {
 				wakeupOnCharge = 0xFFFF;
 				watchdogExpiredFlag = 1;
 				rtcWakeupEventFlag = 0;
+				ioWakeupEvent = 0;
 				delayedPowerOffCounter = 0;
 			}
 			watchdogTimer += watchdogExpirePeriod;
@@ -211,7 +236,7 @@ void PowerManagementTask(void) {
 	}
 
 	if ( delayedPowerOffCounter && delayedPowerOffCounter <= HAL_GetTick() ) {
-		if (POW_5V_BOOST_EN_STATUS()) {
+		if (POW_5V_BOOST_EN_STATUS() && (pow5vInDetStatus != POW_5V_IN_DETECTION_STATUS_PRESENT)) {
 			Turn5vBoost(0);
 		}
 		delayedPowerOffCounter = 0;

@@ -16,8 +16,9 @@
 #include "execution.h"
 
 #define POW_5V_IO_DET_ADC_THRESHOLD		2950
-#define VBAT_TURNOFF_ADC_THRESHOLD		100 // mV unit
+#define VBAT_TURNOFF_ADC_THRESHOLD		0 // mV unit
 #define POW_5V_DET_LDO_EN_STATUS()		(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_11) == GPIO_PIN_SET)
+#define POW_SOURCE_PRESENT()			(powerInStatus==POW_SOURCE_NORMAL || powerInStatus==POW_SOURCE_WEAK || power5vIoStatus==POW_SOURCE_NORMAL || power5vIoStatus==POW_SOURCE_WEAK)
 
 uint8_t forcedPowerOffFlag __attribute__((section("no_init")));
 uint8_t forcedVSysOutputOffFlag __attribute__((section("no_init")));
@@ -72,7 +73,7 @@ void Power5VSetModeLDO(void) {
 
 int8_t Turn5vBoost(uint8_t onOff) {
 	if (onOff) {
-		if ( batteryVoltage > vbatPowOffTresh || chargerStatus != CHG_NO_VALID_SOURCE) {
+		if ( batteryVoltage > vbatPowOffTresh || POW_SOURCE_PRESENT()/*chargerStatus != CHG_NO_VALID_SOURCE*/) {
 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
 			//DelayUs(10);
 			//analogWDGConfig.ITMode = ENABLE;
@@ -105,7 +106,6 @@ __STATIC_INLINE void TurnVSysOutput(uint8_t onOff){
 }
 
 void PowerSourceInit(void) {
-	ChargerSetUSBLockout(CHG_USB_IN_LOCK);
 
 	// initialize global variables after power-up
 	if (!resetStatus) {
@@ -113,6 +113,9 @@ void PowerSourceInit(void) {
 		forcedVSysOutputOffFlag = 0;
 		forcedPowerOffCounter = 0;
 	}
+
+	MS_TIME_COUNTER_INIT(pow5vPresentCounter);
+	MS_TIME_COUNTER_INIT(pow5vDetTimeCount);
 
 	uint16_t var = 0;
 	EE_ReadVariable(POWER_REGULATOR_CONFIG_NV_ADDR, &var);
@@ -123,48 +126,46 @@ void PowerSourceInit(void) {
 		}
 	}
 
-	if (vsysSwitchLimit == 21 && (resetStatus || executionState == EXECUTION_STATE_UPDATE || executionState == EXECUTION_STATE_CONFIG_RESET)) {
-		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1, GPIO_PIN_RESET); // 2.1A limit value, is valid only after reset
-	} else {
-		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1, GPIO_PIN_SET); // after power-up state is 500mA limit
-		vsysSwitchLimit = 5;
-	}
-
-	MS_TIME_COUNTER_INIT(pow5vPresentCounter);
-	MS_TIME_COUNTER_INIT(pow5vDetTimeCount);
-
 	vbatPowOffTresh = currentBatProfile!=NULL ? (uint16_t)(currentBatProfile->cutoffVoltage)*20+VBAT_TURNOFF_ADC_THRESHOLD : (uint16_t)3000+VBAT_TURNOFF_ADC_THRESHOLD;
-	AnalogAdcWDGConfig(POW_VBAT_SENS_CHN,  vbatPowOffTresh);
+	AnalogAdcWDGConfig(ADC_VBAT_SENS_CHN,  vbatPowOffTresh);
 
-	/*if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == GPIO_PIN_SET || !resetStatus) { // after power-up boost should be enabled if there is enough energy
-		if ( (batteryVoltage > vbatPowOffTresh || !CHARGER_IS_BATTERY_PRESENT()) && (batteryRsoc >= 5 || powerInStatus != POW_SOURCE_NOT_PRESENT) ) {
-			Turn5vBoost(1);
-		} else {
-			forcedPowerOffFlag = 1;
-			wakeupOnCharge = 500; // schedule wake up when there is more than 50% charge
-		}
-	} else {
-		POW_5V_DET_LDO_ENABLE(0);
-		Turn5vBoost(0);
-	}*/
+	DelayUs(100);
+	uint16_t batVolt = GetSampleVoltage(ADC_VBAT_SENS_CHN)*(int32_t)1374/1000;
 
-	if (resetStatus || executionState == EXECUTION_STATE_UPDATE || executionState == EXECUTION_STATE_CONFIG_RESET) { // after power-up maintain previous state
+	// maintain regulator state before reset
 		if ( HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == GPIO_PIN_SET ) {
-			if (Turn5vBoost(1) != 0) {
+		// if there is mcu power-on, but reg was on, it can be power lost fault condition, check sources
+		if (executionState == EXECUTION_STATE_POWER_RESET && batVolt < vbatPowOffTresh && CHARGER_INSTAT()) {
+			Turn5vBoost(0);
 				forcedPowerOffFlag = 1;
-				wakeupOnCharge = 5; // schedule wake up when power is applied
+			wakeupOnCharge = 5; // schedule wake up when there is enough energy
+		} else {
+			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+			AnalogAdcWDGEnable(ENABLE);
+			AnalogPowerIsGood();
 			}
 		} else {
 			POW_5V_DET_LDO_ENABLE(0);
 			Turn5vBoost(0);
 		}
+
+	if ( executionState == EXECUTION_STATE_POWER_ON || executionState == EXECUTION_STATE_POWER_RESET ) {
+		// after power-up state is 500mA limit
+		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1, GPIO_PIN_SET);
+		vsysSwitchLimit = 5;
+	} else {
+		if (vsysSwitchLimit == 21 )
+			HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1,  GPIO_PIN_RESET); // 2.1A limit value, is valid only after reset
+		else
+			HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1, GPIO_PIN_SET);
 	}
 
-	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET && (resetStatus || executionState == EXECUTION_STATE_UPDATE || executionState == EXECUTION_STATE_CONFIG_RESET)) { // after power-up vsys switch should be disabled
-		if ( batteryVoltage > vbatPowOffTresh || chargerStatus != CHG_NO_VALID_SOURCE ) {
-			TurnVSysOutput(1);
-		} else {
+	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12) == GPIO_PIN_RESET && executionState != EXECUTION_STATE_POWER_ON ) { // after power-up vsys switch should be disabled
+		if ( executionState == EXECUTION_STATE_POWER_RESET && batVolt < vbatPowOffTresh && CHARGER_INSTAT() ) {
+			TurnVSysOutput(0);
 			forcedVSysOutputOffFlag = 1;
+		} else {
+			TurnVSysOutput(1);
 		}
 	} else {
 		TurnVSysOutput(0);
@@ -177,19 +178,18 @@ void PowerSourceInit(void) {
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-	//vbatAdcTresh = currentBatProfile != NULL ? ((uint32_t)(currentBatProfile->cutoffVoltage*20+VBAT_TURNOFF_ADC_THRESHOLD) * 2981) /*20 * 4096 * 1000 / 1374*/ / 3300 : (((uint32_t)155*20+VBAT_TURNOFF_ADC_THRESHOLD) * 2981) / 3300;
-	//InitVbatWDG();
 }
 
 /*__STATIC_INLINE*/ void CheckMinimumPower(void) {
 	if ( POW_5V_BOOST_EN_STATUS() ) {
-		volatile uint16_t samt = GetSample(POW_VBAT_SENS_CHN);
-		if ( (samt < GetAdcWDGThreshold()) && chargerStatus == CHG_NO_VALID_SOURCE) {
+		volatile uint16_t samt = GetSample(ADC_VBAT_SENS_CHN);
+		// if no sources connected, turn off 5V regulator and system switch when battery voltage drops below minimum
+		if ( samt < GetAdcWDGThreshold() && pow5vInDetStatus != POW_5V_IN_DETECTION_STATUS_PRESENT && CHARGER_INSTAT()) {
 			if ( POW_VSYS_OUTPUT_EN_STATUS() ) {
 				TurnVSysOutput(0);
 				forcedVSysOutputOffFlag = 1;
 				MS_TIME_COUNTER_INIT(forcedPowerOffCounter); // leave 2 ms for switch to react
-			} else if (pow5vInDetStatus != POW_5V_IN_DETECTION_STATUS_PRESENT && MS_TIME_COUNT(forcedPowerOffCounter) >= 2) {
+			} else if ( MS_TIME_COUNT(forcedPowerOffCounter) >= 2) {
 				POW_5V_DET_LDO_ENABLE(0);
 				Turn5vBoost(0);
 				forcedPowerOffFlag = 1;
@@ -197,8 +197,8 @@ void PowerSourceInit(void) {
 			}
 		}
 	} else {
-		int16_t batVolt = (GetSample(POW_VBAT_SENS_CHN) * aVdd * 11) >> 15; // 4096 * 1374 / 1000
-		if ( (/*pow5vInDetStatus != POW_5V_IN_DETECTION_STATUS_PRESENT ||*/ chargerStatus == CHG_NO_VALID_SOURCE) && batVolt < vbatPowOffTresh && POW_VSYS_OUTPUT_EN_STATUS()) {
+		int16_t batVolt = (GetSample(ADC_VBAT_SENS_CHN) * aVdd * 11) >> 15; // 4096 * 1374 / 1000
+		if ( (!POW_SOURCE_PRESENT() /*chargerStatus == CHG_NO_VALID_SOURCE*/) && batVolt < vbatPowOffTresh && POW_VSYS_OUTPUT_EN_STATUS()) {
 			TurnVSysOutput(0);
 			forcedVSysOutputOffFlag = 1;
 		}
@@ -344,18 +344,18 @@ void PowerSourceSetBatProfile(const BatteryProfile_T* batProfile) {
 	//analogWDGConfig.LowThreshold = POW_5V_IO_DET_ADC_THRESHOLD;
 	//AnalogAdcWDGConfig(&analogWDGConfig);
 	vbatPowOffTresh = currentBatProfile!=NULL ? (uint16_t)(currentBatProfile->cutoffVoltage)*20+VBAT_TURNOFF_ADC_THRESHOLD : (uint16_t)3000+VBAT_TURNOFF_ADC_THRESHOLD;
-	AnalogAdcWDGConfig(POW_VBAT_SENS_CHN,  vbatPowOffTresh);
+	AnalogAdcWDGConfig(ADC_VBAT_SENS_CHN,  vbatPowOffTresh);
 }
 
 void PowerSourceSetVSysSwitchState(uint8_t state) {
 	if (state == 5) {
 		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1, GPIO_PIN_SET);
-		if ( GetSample(POW_VBAT_SENS_CHN) > GetAdcWDGThreshold() || chargerStatus != CHG_NO_VALID_SOURCE )
+		if ( GetSample(ADC_VBAT_SENS_CHN) > GetAdcWDGThreshold() || POW_SOURCE_PRESENT()/*chargerStatus != CHG_NO_VALID_SOURCE*/ )
 			TurnVSysOutput(1);
 		vsysSwitchLimit = state;
 	} else if (state == 21) {
 		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_1, GPIO_PIN_RESET);
-		if ( GetSample(POW_VBAT_SENS_CHN) > GetAdcWDGThreshold() || chargerStatus != CHG_NO_VALID_SOURCE )
+		if ( GetSample(ADC_VBAT_SENS_CHN) > GetAdcWDGThreshold() || POW_SOURCE_PRESENT()/*chargerStatus != CHG_NO_VALID_SOURCE*/ )
 			TurnVSysOutput(1);
 		vsysSwitchLimit = state;
 	} else {

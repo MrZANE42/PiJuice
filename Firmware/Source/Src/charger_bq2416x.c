@@ -6,16 +6,17 @@
 #include "fuel_gauge_lc709203f.h"
 #include "stddef.h"
 #include "power_source.h"
+#include "analog.h"
 
 #define CHG_READ_PERIOD_MS 	90  // ms
 #define WD_RESET_TRSH_MS 	(30000 / 3)
 
 #define BQ2416X_OTG_LOCK_BIT	0X08
+#define BQ2416X_NOBATOP_BIT		0X01
 
 //#define CHARGER_VIN_DPM_IN		0X00
 #define CHARGER_VIN_DPM_USB		0X07
 
-extern void PowerMngmtSetWakeupOnChargeCmd(uint8_t data[], uint16_t len);
 extern uint8_t resetStatus;
 
 uint8_t chargerNeedPoll = 0;
@@ -304,6 +305,7 @@ int8_t ChargerUpdateControlStatus() {
 			// enable charging
 			regsw[2] &= ~0x02;
 			regsw[2] &= ~0x01; // clear high impedance mode
+			regsw[2] |= 0x04; // Enable charge current termination
 		}
 	} else {
 		// disable charging
@@ -366,7 +368,7 @@ int8_t ChargerUpdateUSBInLockout() {
 }
 
 void ChargerInit() {
-	uint8_t chReg = 0;
+//	uint8_t chReg = 0;
 	uint16_t var = 0;
 	//const BatteryProfile_T* batProfile = BatteryGetProfile();
 
@@ -403,33 +405,21 @@ void ChargerInit() {
 	MS_TIME_COUNTER_INIT(readTimeCounter);
 	MS_TIME_COUNTER_INIT(wdTimeCounter);
 
-	chReg = regsw[2] | 0x82; // Reset all registers to default values and set high impedance mode
-	HAL_I2C_Mem_Write(&hi2c2, 0xD6, 2, 1, &chReg, 1, 1);
-	//I2C_SlaveRegsWrite(&hi2c2, 0xD6, 0x02, 1, &chReg, 1, CHARGER_I2C_REG_WRITE_TIMEOUT_US);
-	//while (HAL_I2C_GetState(&hi2c2) != HAL_I2C_STATE_READY);
-
-	/*regsw[0] = 0x88; // USB has precedence when both supplies are connected
-	ChargerRegWrite(0x00);*/
-	//I2C_SlaveRegsWrite(&hi2c2, 0xD6, 0x00, 1, &chReg, 1, CHARGER_I2C_REG_WRITE_TIMEOUT_US);
-
-    // Lockout USB input for charging
-	regsw[1] |= 0x08;
+	regsw[1] |= 0x08; // lockout usbin
 	HAL_I2C_Mem_Write(&hi2c2, 0xD6, 1, 1, &regsw[1], 1, 1);
-	//I2C_SlaveRegsWrite(&hi2c2, 0xD6, 1, 1, &chReg, 1, CHARGER_I2C_REG_WRITE_TIMEOUT_US);
-	//while (HAL_I2C_GetState(&hi2c2) != HAL_I2C_STATE_READY);
 
-	// set control register, high impedance, disable charging initially
 	// NOTE: do not place in high impedance mode, it will disable VSys mosfet, and no power to mcu
-	regsw[2] |= 0x02;
+	regsw[2] |= 0x02; // set control register, disable charging initially
+	//regsw[2] &= ~0x04; // disable termination
+	regsw[2] |= 0x20; // Set USB limit 500mA
 	HAL_I2C_Mem_Write(&hi2c2, 0xD6, 2, 1, &regsw[2], 1, 1);
 
 	// reset timer
-	regsw[0] = chargerInputsPrecedence << 3;
-	chReg = regsw[0] | 0x80;
-	HAL_I2C_Mem_Write(&hi2c2, 0xD6, 0, 1, &chReg, 1, 1);
+	//regsw[0] = chargerInputsPrecedence << 3;
+	//chReg = regsw[0] | 0x80;
+	//HAL_I2C_Mem_Write(&hi2c2, 0xD6, 0, 1, &chReg, 1, 1);
 
-	chReg = 0x0C; // Set USB limit 500mA
-	HAL_I2C_Mem_Write(&hi2c2, 0xD6, 0x02, 1, &chReg, 1, 1000);
+	DelayUs(500);
 
 	// read states
 	HAL_I2C_Mem_Read(&hi2c2, 0xD6, 0, 1, regs, 8, 1000);

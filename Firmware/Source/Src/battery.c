@@ -10,6 +10,7 @@
 #include "nv.h"
 #include "charger_bq2416x.h"
 #include "config_switch_resistor.h"
+#include "fuel_gauge_lc709203f.h"
 
 #define BATTERY_PROFILES_COUNT() ((sizeof(batteryProfiles)/sizeof(BatteryProfile_T)))
 
@@ -24,25 +25,31 @@ BatteryProfile_T customBatProfileReq;
 BatteryStatus_T batteryStatus = BAT_STATUS_NOT_PRESENT;
 
 const BatteryProfile_T batteryProfiles[] = {
-	{ 	// BP6X battery
-		1400, // 1400mAh
-		0x04, // 850mA, ~0.6C
+	{ 	// PiJuice Zero 1000mAh battery
+		BAT_CHEMISTRY_LIPO,
+		1000, // 1000mAh
+		0x01, // 6250mA
 		0x00, // 50mA
 		0x22, // 4.18V
 		150, // 3V
-		1,
-		10,
-		45,
-		59,
-		0x0D34,
+		3743, 3933, 4057,
+		13500, 13300, 13300,
+		0,
+		2,
+		49,
+		65,
+		3450,
 		1000, // 10K
 	},
 	{ 	// BP7X battery
+		BAT_CHEMISTRY_LIPO,
 		1820, // 1820mAh
 		0x05, // 925mA, ~0.5C
 		0x00, // 50mA
 		0x22, // 4.18V
 		150, // 3V
+		3649, 3800, 4077,
+		20900, 20500, 20200,
 		1,
 		10,
 		45,
@@ -51,11 +58,14 @@ const BatteryProfile_T batteryProfiles[] = {
 		1000, // 10K
 	},
 	{ 	// SNN5843 battery
+		BAT_CHEMISTRY_LIPO,
 		2300, // 2300mAh
 		0x08, // 1150mA, ~0.5C
 		0x01, // 100mA
 		0x22, // 4.18V
 		150, // 3V
+		3650, 3800, 4079,
+		15300, 14900, 14820,
 		1,
 		10,
 		45,
@@ -63,28 +73,146 @@ const BatteryProfile_T batteryProfiles[] = {
 		0x0D34,
 		1000, // 10K
 	},
-	{ 	// PKCELL LIPO8047109 battery
-		5000, // 5000mAh
-		0x1A, // 2500mA, ~0.5C
-		0x01,//0x00, // 50mA
+	{ 	// PiJuice 12000mAh battery
+		BAT_CHEMISTRY_LIPO,
+		12000, // 12000mAh
+		0x1A, // 2500mA
+		0x06, // 350mA
 		0x22, // 4.18V
 		150, // 3V
-		1,
+		3488, 3824, 4061,
+		11200, 10800, 10800,
+		0,
 		2,
-		45,
+		49,
+		65,
+		3450,
+		1000, // 10K
+	},
+	{ 	// PiJuice 5000mAh battery
+		BAT_CHEMISTRY_LIPO,
+		5000, // 5000mAh
+		0x1A, // 2500mA
+		0x04, // 250mA
+		0x22, // 4.18V
+		150, // 3V
+		3506, 3870, 4056,
+		11100, 10500, 10700,
+		0,
+		2,
+		49,
+		65,
+		3450,
+		1000, // 10K
+	},
+	{ 	// PiJuice BP7X 1600mAh battery
+		BAT_CHEMISTRY_LIPO,
+		1600, // 1600mAh
+		0x05, // 925mA
+		0x00, // 50mA
+		0x22, // 4.18V
+		150, // 3V
+		3672, 3811, 4094,
+		22200, 20800, 20500,
+		0,
+		2,
 		50,
+		70,
 		0x0D34,
+		1000, // 10K
+	},
+	{ 	// PiJuice SNN5843 1300mAh battery
+		BAT_CHEMISTRY_LIPO,
+		1300, // 1300mAh
+		0x03, // 775mA
+		0x00, // 50mA
+		0x22, // 4.18V
+		150, // 3V
+		3675, 3818, 4105,
+		15600, 15100, 15100,
+		0,
+		2,
+		50,
+		70,
+		0x0D34,
+		1000, // 10K
+	},
+	{ 	// PiJuice 1200mAh battery
+		BAT_CHEMISTRY_LIPO,
+		1200, // 1200mAh
+		0x02, // 700mA
+		0x00, // 50mA
+		0x22, // 4.18V
+		150, // 3V
+		3514, 3859, 4045,
+		19400, 17300, 16900,
+		0,
+		2,
+		49,
+		65,
+		3450,
+		1000, // 10K
+	},
+	{ 	// BP6X battery
+		BAT_CHEMISTRY_LIPO,
+		1400, // 1400mAh
+		0x04, // 850mA, ~0.6C
+		0x00, // 50mA
+		0x22, // 4.18V
+		150, // 3V
+		3649, 3800, 4077,
+		20670, 20319, 20215,
+		1,
+		10,
+		45,
+		59,
+		0x0D34,
+		1000, // 10K
+	},
+	{ 	// PiJuice 600mAh battery
+		BAT_CHEMISTRY_LIPO,
+		600, // 600mAh
+		0x00, // 550mA
+		0x00, // 50mA
+		0x22, // 4.18V
+		150, // 3V
+		3659, 3816, 4087,
+		37200, 22100, 22300,
+		0,
+		2,
+		49,
+		65,
+		3450,
+		1000, // 10K
+	},
+	{ 	// PiJuice 500mAh battery
+		BAT_CHEMISTRY_LIPO,
+		500, // 500mAh
+		0x00, // 550mA
+		0x00, // 50mA
+		0x22, // 4.18V
+		150, // 3V
+		3659, 3914, 4060,
+		16600, 15600, 15600,
+		0,
+		2,
+		49,
+		65,
+		3450,
 		1000, // 10K
 	}
 };
 
 BatteryProfile_T customBatProfile = {
 	 	// default battery
+		BAT_CHEMISTRY_LIPO,
 		1400, // 1400mAh
 		0x04, // 850mA
 		0x01, // 100mA
 		0x1E, // 4.1V
 		150, // 3V
+		3649, 3800, 4077,
+		15900, 15630, 15550,
 		1,
 		10,
 		45,
@@ -106,9 +234,8 @@ uint8_t batProfileStatus = BATTERY_INVALID_PROFILE_ID;
 
 BatteryProfile_T const *currentBatProfile = NULL;
 
-BatteryTempSenseConfig_T tempSensorConfig = BAT_TEMP_SENSE_CONFIG_AUTO_DETECT;
-
 int8_t BatReadEEprofileData(void);
+int8_t BatReadExtendedEEprofileData(void);
 void BatWriteEEprofileData(BatteryProfile_T *batProfile);
 
 void BatInitProfile(uint8_t initPofileId) {
@@ -116,6 +243,7 @@ void BatInitProfile(uint8_t initPofileId) {
 
 	if ( initPofileId == BATTERY_CUSTOM_PROFILE_ID ) {
 		if (BatReadEEprofileData() == 0) {
+			BatReadExtendedEEprofileData();
 			currentBatProfile = &customBatProfile;
 			batProfileStatus = BATTERY_CUSTOM_PROFILE_ID;
 		} else {
@@ -145,6 +273,13 @@ void BatInitProfile(uint8_t initPofileId) {
 				customBatProfile.tCool = 10;
 				customBatProfile.tWarm = 45;
 				customBatProfile.tHot = 60;
+				customBatProfile.chemistry=0xFF;
+				customBatProfile.ocv10 = 0xFFFF;
+				customBatProfile.ocv50 = 0xFFFF;
+				customBatProfile.ocv90 = 0xFFFF;
+				customBatProfile.r10 = 0xFFFF;
+				customBatProfile.r50 = 0xFFFF;
+				customBatProfile.r90 = 0xFFFF;
 
 				batProfileStatus = BATTERY_CONFIG_PROFILE_STATUS;
 				currentBatProfile = &customBatProfile;
@@ -181,12 +316,39 @@ void BatteryInit(void) {
 		// if crc correct
 		BatInitProfile(var&0xFF);
 	}
+}
 
-	var = 0;
-	EE_ReadVariable(BAT_TEMP_SENSE_CONFIG, &var);
-	if (((~var)&0xFF) == (var>>8)) {
-		tempSensorConfig = var&0xFF;
-	}
+int8_t BatReadExtendedEEprofileData(void) {
+	uint8_t dataValid = 1;
+
+	customBatProfile.chemistry=0xFF;
+	if (NvReadVariableU8(BAT_CHEMISTRY_NV_ADDR, (uint8_t*)&(customBatProfile.chemistry)) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+
+	customBatProfile.ocv10=0xFFFF;
+	if (NvReadVariableU8(BAT_OCV10L_NV_ADDR, (uint8_t*)&(customBatProfile.ocv10)) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+	if (NvReadVariableU8(BAT_OCV10H_NV_ADDR, (uint8_t*)&(customBatProfile.ocv10)+1) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+
+	customBatProfile.ocv50=0xFFFF;
+	if (NvReadVariableU8(BAT_OCV50L_NV_ADDR, (uint8_t*)&(customBatProfile.ocv50)) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+	if (NvReadVariableU8(BAT_OCV50H_NV_ADDR, (uint8_t*)&(customBatProfile.ocv50)+1) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+
+	customBatProfile.ocv90=0xFFFF;
+	if (NvReadVariableU8(BAT_OCV90L_NV_ADDR, (uint8_t*)&(customBatProfile.ocv90)) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+	if (NvReadVariableU8(BAT_OCV90H_NV_ADDR, (uint8_t*)&(customBatProfile.ocv90)+1) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+
+	customBatProfile.r10=0xFFFF;
+	if (NvReadVariableU8(BAT_R10L_NV_ADDR, (uint8_t*)&(customBatProfile.r10)) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+	if (NvReadVariableU8(BAT_R10H_NV_ADDR, (uint8_t*)&(customBatProfile.r10)+1) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+
+	customBatProfile.r50=0xFFFF;
+	if (NvReadVariableU8(BAT_R50L_NV_ADDR, (uint8_t*)&(customBatProfile.r50)) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+	if (NvReadVariableU8(BAT_R50H_NV_ADDR, (uint8_t*)&(customBatProfile.r50)+1) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+
+	customBatProfile.r90=0xFFFF;
+	if (NvReadVariableU8(BAT_R90L_NV_ADDR, (uint8_t*)&(customBatProfile.r90)) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+	if (NvReadVariableU8(BAT_R90H_NV_ADDR, (uint8_t*)&(customBatProfile.r90)+1) != NV_READ_VARIABLE_SUCCESS) dataValid = 0;
+
+	return !dataValid; // return 0 if valid
 }
 
 int8_t BatReadEEprofileData(void) {
@@ -256,6 +418,22 @@ void BatWriteEEprofileData(BatteryProfile_T *batProfile) {
 	EE_WriteVariable(BAT_NTC_CRC_NV_ADDR, batProfile->ntcB ^ batProfile->ntcResistance);
 }
 
+void BatWriteExtendedEEprofileData(BatteryProfile_T *batProfile) {
+	NvWriteVariableU8(BAT_CHEMISTRY_NV_ADDR, (uint8_t)(batProfile->chemistry));
+	NvWriteVariableU8(BAT_OCV10L_NV_ADDR, batProfile->ocv10);
+	NvWriteVariableU8(BAT_OCV10H_NV_ADDR, (batProfile->ocv10)>>8);
+	NvWriteVariableU8(BAT_OCV50L_NV_ADDR, batProfile->ocv50);
+	NvWriteVariableU8(BAT_OCV50H_NV_ADDR, (batProfile->ocv50)>>8);
+	NvWriteVariableU8(BAT_OCV90L_NV_ADDR, batProfile->ocv90);
+	NvWriteVariableU8(BAT_OCV90H_NV_ADDR, (batProfile->ocv90)>>8);
+	NvWriteVariableU8(BAT_R10L_NV_ADDR, batProfile->r10);
+	NvWriteVariableU8(BAT_R10H_NV_ADDR, (batProfile->r10)>>8);
+	NvWriteVariableU8(BAT_R50L_NV_ADDR, batProfile->r50);
+	NvWriteVariableU8(BAT_R50H_NV_ADDR, (batProfile->r50)>>8);
+	NvWriteVariableU8(BAT_R90L_NV_ADDR, batProfile->r90);
+	NvWriteVariableU8(BAT_R90H_NV_ADDR, (batProfile->r90)>>8);
+}
+
 void BatteryTask(void) {
 	if (setProfileReq >= 0) {
 		uint8_t id = setProfileReq;
@@ -276,7 +454,7 @@ void BatteryTask(void) {
 		FuelGaugeSetBatProfile(currentBatProfile);
 	}
 
-	if (writeCustomProfileReq) {
+	if (writeCustomProfileReq==1) {
 		writeCustomProfileReq = 0;
 		BatWriteEEprofileData(&customBatProfileReq);
 		if (BatReadEEprofileData() == 0) {
@@ -290,8 +468,10 @@ void BatteryTask(void) {
 		uint16_t var;
 		EE_ReadVariable(BAT_PROFILE_NV_ADDR, &var);
 		if ( ((var&0xFF) != BATTERY_CUSTOM_PROFILE_ID) || (((var^0xFF)&0xFF) != (var>>8)) ) {
+			BatReadExtendedEEprofileData();
 			uint16_t var;
-			EE_WriteVariable(BAT_PROFILE_NV_ADDR, BATTERY_CUSTOM_PROFILE_ID | (~BATTERY_CUSTOM_PROFILE_ID)<<8);
+// ORG			EE_WriteVariable(BAT_PROFILE_NV_ADDR, BATTERY_CUSTOM_PROFILE_ID | ((uint16_t)~BATTERY_CUSTOM_PROFILE_ID<<8));
+			EE_WriteVariable(BAT_PROFILE_NV_ADDR, BATTERY_CUSTOM_PROFILE_ID | (~BATTERY_CUSTOM_PROFILE_ID<<8));
 			EE_ReadVariable(BAT_PROFILE_NV_ADDR, &var);
 			if (((var^0xFF)&0xFF) == (var>>8) && (var&0xFF) == BATTERY_CUSTOM_PROFILE_ID) {  // upper byte should be complement if data are valid
 				if (currentBatProfile != NULL)
@@ -307,9 +487,16 @@ void BatteryTask(void) {
 		ChargerSetBatProfileReq(currentBatProfile);
 		PowerSourceSetBatProfile(currentBatProfile);
 		FuelGaugeSetBatProfile(currentBatProfile);
+	} else if (writeCustomProfileReq==2) {
+		writeCustomProfileReq = 0;
+		BatWriteExtendedEEprofileData(&customBatProfileReq);
+		BatReadExtendedEEprofileData();
+		if (batProfileStatus == BATTERY_CUSTOM_PROFILE_ID) {
+			FuelGaugeSetBatProfile(currentBatProfile);
+		}
 	}
 
-	if (!CHARGER_IS_BATTERY_PRESENT()) {
+	if (!CHARGER_IS_BATTERY_PRESENT() || batteryVoltage < 2500) {
 		batteryStatus = BAT_STATUS_NOT_PRESENT;
 	} else if (chargerStatus == CHG_CHARGING_FROM_IN) {
 		batteryStatus = BAT_STATUS_CHARGING_FROM_IN;
@@ -378,6 +565,50 @@ int8_t BatteryReadCurrentProfile(uint8_t *data, uint16_t *len) {
 	return 0;
 }
 
+int8_t BatteryWriteCustomExtendedProfileReq(uint8_t data[], uint16_t len) {
+	//batProfileStatus = BATTERY_PROFILE_WRITE_BUSY_STATUS;
+
+	customBatProfileReq.chemistry = data[0];
+	/*customBatProfileReq.ocv10 = (((uint16_t)data[2])<<8) | data[1];
+	customBatProfileReq.ocv50 = data[3]|(((uint16_t)data[4])<<8);
+	customBatProfileReq.ocv90 = data[5]|(((uint16_t)data[6])<<8);
+	customBatProfileReq.r10 = data[7]|(((uint16_t)data[8])<<8);
+	customBatProfileReq.r50 = data[9]|(((uint16_t)data[10])<<8);
+	customBatProfileReq.r90 = data[11]|(((uint16_t)data[12])<<8);*/
+	customBatProfileReq.ocv10 = *(uint16_t*)&data[1];
+	customBatProfileReq.ocv50 = *(uint16_t*)&data[3];
+	customBatProfileReq.ocv90 = *(uint16_t*)&data[5];
+	customBatProfileReq.r10 = *(uint16_t*)&data[7];
+	customBatProfileReq.r50 = *(uint16_t*)&data[9];
+	customBatProfileReq.r90 = *(uint16_t*)&data[11];
+
+	writeCustomProfileReq = 2;
+	return 0;
+}
+
+int8_t BatteryReadCurrentExtendedProfile(uint8_t *data, uint16_t *len) {
+	data[0] = currentBatProfile->chemistry;
+	data[1] = currentBatProfile->ocv10;
+	data[2] = currentBatProfile->ocv10>>8;
+	data[3] = currentBatProfile->ocv50;
+	data[4] = currentBatProfile->ocv50>>8;
+	data[5] = currentBatProfile->ocv90;
+	data[6] = currentBatProfile->ocv90>>8;
+	data[7] = currentBatProfile->r10;
+	data[8] = currentBatProfile->r10>>8;
+	data[9] = currentBatProfile->r50;
+	data[10] = currentBatProfile->r50>>8;
+	data[11] = currentBatProfile->r90;
+	data[12] = currentBatProfile->r90>>8;
+	data[13] = 0xFF; // reserved for future use
+	data[14] = 0xFF; // reserved for future use
+	data[15] = 0xFF; // reserved for future use
+	data[16] = 0xFF; // reserved for future use
+
+	*len = 17;
+	return 0;
+}
+
 const BatteryProfile_T *BatteryGetProfile(void) {
 	/*if (batProfileStatus < BATTERY_PROFILES_COUNT) {
 		return &(batteryProfiles[batProfileStatus]);
@@ -391,22 +622,4 @@ int8_t BatteryReadProfileStatus(uint8_t *data, uint16_t *len) {
 	data[0] = batProfileStatus;
 	*len = 1;
 	return 0;
-}
-
-int8_t BatterySetTempSenseConfig(uint8_t *data, uint16_t len) {
-	if (data[0] >= BAT_TEMP_SENSE_CONFIG_END) return 1;
-
-	EE_WriteVariable(BAT_TEMP_SENSE_CONFIG, data[0] | ((uint16_t)(~data[0])<<8));
-
-	uint16_t var = 0;
-	EE_ReadVariable(BAT_TEMP_SENSE_CONFIG, &var);
-	if (((~var)&0xFF) == (var>>8)) {
-		tempSensorConfig = var&0xFF;
-	}
-	return 0;
-}
-
-void BatteryGetTempSenseConfig(uint8_t data[], uint16_t *len) {
-	data[0] = tempSensorConfig;
-	*len = 1;
 }

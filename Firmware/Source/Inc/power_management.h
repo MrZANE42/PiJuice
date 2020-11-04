@@ -23,6 +23,7 @@ typedef enum {
 extern RunPinInstallationStatus_T runPinInstallationStatus;
 extern uint8_t watchdogExpiredFlag;
 extern uint8_t rtcWakeupEventFlag;
+extern uint8_t ioWakeupEvent;
 
 void PowerManagementInit(void);
 void PowerManagementTask(void);
