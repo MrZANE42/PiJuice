@@ -110,3 +110,5 @@ ENV/
 Software/Source/pijuice-*.tar.gz
 MANIFEST
 *.swp
+/Firmware/Source/Inc/*.bak
+/Firmware/Source/Src/*.bak
