@@ -34,6 +34,8 @@ uint8_t PowerMngmtGetPowerOffCounter(void);
 void PowerMngmtConfigureWatchdogCmd(uint8_t data[], uint16_t len);
 void PowerMngmtGetWatchdogConfigurationCmd(uint8_t data[], uint16_t *len);
 void PowerMngmtHostPollEvent(void);
+uint8_t PowerMngmtGet5VPowerStatus();
+uint8_t PowerMngmtGetShuttingDownStatus();
 //int8_t WakeUpHost(void);
 
 #endif /* POWER_MANAGEMENT_H_ */

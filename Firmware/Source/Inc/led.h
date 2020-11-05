@@ -36,5 +36,6 @@ void LedCmdGetBlink(uint8_t led, uint8_t data[], uint16_t *len);
 uint8_t LedGetParamR(uint8_t led);
 uint8_t LedGetParamG(uint8_t led);
 uint8_t LedGetParamB(uint8_t led);
+LedFunction_T LedGetFunction(uint8_t led);
 
 #endif /* LED_H_ */

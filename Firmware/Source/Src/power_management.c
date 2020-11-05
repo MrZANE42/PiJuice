@@ -173,6 +173,7 @@ void PowerMngmtHostPollEvent(void) {
 	watchdogTimer = watchdogExpirePeriod;
 }
 
+
 void PowerManagementTask(void) {
 	static uint8_t b = 0;//rsoc;
 
@@ -319,4 +320,14 @@ void PowerMngmtGetWakeupOnChargeCmd(uint8_t data[], uint16_t *len)  {
 		data[0] = wakeupOnCharge <= 1000 ? wakeupOnCharge / 10 : 0x7F;
 	//}
 	*len = 1;
+}
+
+uint8_t PowerMngmtGet5VPowerStatus()
+{
+	return POW_5V_BOOST_EN_STATUS();
+}
+
+uint8_t PowerMngmtGetShuttingDownStatus()
+{
+	return delayedPowerOffCounter > 0;
 }

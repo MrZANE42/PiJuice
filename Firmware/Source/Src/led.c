@@ -11,6 +11,8 @@
 #include "time_count.h"
 
 extern void Error_Handler(void);
+extern uint8_t PowerMngmtGet5VPowerStatus();
+extern uint8_t PowerMngmtGetShuttingDownStatus();
 
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim15;
@@ -249,23 +251,39 @@ void ProcessBlink(uint8_t n) {
 	}
 }
 
-extern uint32_t delayedPowerOffCounter;
-#define POW_5V_BOOST_EN_STATUS()	 	(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == GPIO_PIN_SET)
-void LedTask(void) {
-	// Indicate Power status if used by any LED (according to configuration off led)
-	if(POW_5V_BOOST_EN_STATUS())
-	{
-		if(!delayedPowerOffCounter)
-			LedFunctionSetRGB(LED_ON_OFF_STATUS, 0, 128, 0);	// Green while powered up and running
-		else
-			LedFunctionSetRGB(LED_ON_OFF_STATUS, 128, 0, 0);	// Red while shutting down
-	}
-	else
-		LedFunctionSetRGB(LED_ON_OFF_STATUS, 0, 0, 0);			//LED off when shut down
+void HandlePowerStateLED(uint8_t led, uint8_t on)
+{
+	if (leds[led].func != LED_ON_OFF_STATUS)
+		return;
 
+	// We only use one color at a time so clear all to simplify code
+	leds[0].r = leds[0].g = leds[0].b = 0;
+
+	if(on)
+	{
+		// Indicate Power status if used by any LED (according to configuration off led)
+		if(PowerMngmtGet5VPowerStatus())
+		{
+			if(PowerMngmtGetShuttingDownStatus())
+				leds[0].r = leds[led].paramR;	// Red while shutting down
+			else
+				leds[0].g = leds[led].paramG;	// Green while powered up and running
+		}
+		else leds[0].r = leds[led].paramB;		// Blue while off
+	}
+	// Set LED
+	LedSetRGB(led, leds[0].r, leds[0].g, leds[0].b);
+}
+
+void LedTask(void) {
 	ProcessBlink(0);
 	ProcessBlink(1);
+
+	// If we have any LEDs indicating on/off status we update them here
+	HandlePowerStateLED(0, 1);
+	HandlePowerStateLED(1, 1);
 }
+
 
 void LedSetRGB(uint8_t led, uint8_t r, uint8_t g, uint8_t b) {
 	if (led == 1) {
