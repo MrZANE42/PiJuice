@@ -471,3 +471,7 @@ void LedCmdGetBlink(uint8_t led, uint8_t data[], uint16_t *len) {
 	data[8] = leds[led].blinkPeriod2 / 10;
 	*len = 9;
 }
+
+LedFunction_T LedGetFunction(uint8_t led) {
+	return (led<2) ? leds[led].func : LED_NOT_USED;
+}

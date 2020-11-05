@@ -322,12 +322,10 @@ void PowerMngmtGetWakeupOnChargeCmd(uint8_t data[], uint16_t *len)  {
 	*len = 1;
 }
 
-uint8_t PowerMngmtGet5VPowerStatus()
-{
+uint8_t PowerMngmtGet5VPowerStatus() {
 	return POW_5V_BOOST_EN_STATUS();
 }
 
-uint8_t PowerMngmtGetShuttingDownStatus()
-{
+uint8_t PowerMngmtGetShuttingDownStatus() {
 	return delayedPowerOffCounter > 0;
 }
